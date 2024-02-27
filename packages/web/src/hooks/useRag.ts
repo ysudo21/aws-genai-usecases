@@ -1,9 +1,9 @@
+import { RetrieveResultItem } from '@aws-sdk/client-kendra';
+import { Model, ShownMessage } from 'generative-ai-use-cases-jp';
+import { ragPrompt } from '../prompts';
 import useChat from './useChat';
 import useChatApi from './useChatApi';
 import useRagApi from './useRagApi';
-import { ragPrompt } from '../prompts';
-import { ShownMessage } from 'generative-ai-use-cases-jp';
-import { Model } from 'generative-ai-use-cases-jp';
 
 const useRag = (id: string) => {
   const {
@@ -18,7 +18,7 @@ const useRag = (id: string) => {
     isEmpty,
   } = useChat(id);
 
-  const { retrieve } = useRagApi();
+  const { retrieve, query } = useRagApi();
   const { predict } = useChatApi();
 
   return {
@@ -30,9 +30,9 @@ const useRag = (id: string) => {
       // Kendra から Retrieve する際に、ローディング表示する
       setLoading(true);
       pushMessage('user', content);
-      pushMessage('assistant', '[Kendra から参照ドキュメントを取得中...]');
+      pushMessage('assistant', 'Kendra から参照ドキュメントを取得中...');
 
-      const query = await predict({
+      const queryContent = await predict({
         model: model,
         messages: [
           {
@@ -46,11 +46,48 @@ const useRag = (id: string) => {
       });
 
       // Kendra から 参考ドキュメントを Retrieve してシステムコンテキストとして設定する
-      const items = await retrieve(query);
+      const retrieveItemsp = retrieve(queryContent);
+      const queryItemsp = query(queryContent)
+      const [retrieveItems, queryItems] = await Promise.all([retrieveItemsp, queryItemsp])
+      console.log({
+        retrieveResult: retrieveItems
+      })
+      console.log({
+        queryResult: queryItems
+      })
+      const faqs: RetrieveResultItem[] = queryItems.data.ResultItems?.filter((item) => item.Type === 'QUESTION_ANSWER').map((item)=>{
+        const res = {
+          Content: item.DocumentExcerpt?.Text || "",
+          Id: item.Id,
+          DocumentId: item.DocumentId,
+          DocumentTitle: item.DocumentTitle?.Text || "",
+          DocumentURI: item.DocumentURI,
+          DocumentAttributes: item.DocumentAttributes,
+          ScoreAttributes: item.ScoreAttributes
+        }
+        console.log({
+          faq:res
+        })
+        return res
+      })||[];
+
+      if ((retrieveItems.data.ResultItems ?? []).length === 0) {
+        popMessage();
+        pushMessage(
+          'assistant',
+          `参考ドキュメントが見つかりませんでした。次の対応を検討してください。
+- Amazon Kendra の data source に対象のドキュメントが追加されているか確認する
+- Amazon Kendra の data source が sync されているか確認する
+- 入力の表現を変更する`
+        );
+        setLoading(false);
+        return;
+      }
+
       updateSystemContext(
         ragPrompt.generatePrompt({
           promptType: 'SYSTEM_CONTEXT',
-          referenceItems: items.data.ResultItems ?? [],
+          referenceItems: [...retrieveItems.data.ResultItems!, ...faqs!] ?? [],
         })
       );
 
@@ -70,13 +107,17 @@ const useRag = (id: string) => {
         },
         (message: string) => {
           // 後処理：Footnote の付与
-          const footnote = items.data.ResultItems?.map((item, idx) => {
+          const footnote = retrieveItems.data.ResultItems?.map((item, idx) => {
             // 参考にしたページ番号がある場合は、アンカーリンクとして設定する
             const _excerpt_page_number = item.DocumentAttributes?.find(
               (attr) => attr.Key === '_excerpt_page_number'
             )?.Value?.LongValue;
             return message.includes(`[^${idx}]`)
-              ? `[^${idx}]: [${item.DocumentTitle}${_excerpt_page_number ? `(${_excerpt_page_number} ページ)` : ''}](${item.DocumentURI}${_excerpt_page_number ? `#page=${_excerpt_page_number}` : ''})`
+              ? `[^${idx}]: [${item.DocumentTitle}${
+                  _excerpt_page_number ? `(${_excerpt_page_number} ページ)` : ''
+                }](${item.DocumentURI}${
+                  _excerpt_page_number ? `#page=${_excerpt_page_number}` : ''
+                })`
               : '';
           })
             .filter((x) => x)
