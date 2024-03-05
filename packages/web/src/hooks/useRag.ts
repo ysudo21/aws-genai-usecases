@@ -56,8 +56,15 @@ const useRag = (id: string) => {
         queryResult: queryItems
       })
       const faqs: RetrieveResultItem[] = queryItems.data.ResultItems?.filter((item) => item.Type === 'QUESTION_ANSWER').map((item)=>{
+        const question = item.AdditionalAttributes?.find(
+          (a) => a.Key === 'QuestionText'
+        )?.Value?.TextWithHighlightsValue?.Text
+        const answer = item.AdditionalAttributes?.find(
+          (a) => a.Key === 'AnswerText'
+        )?.Value?.TextWithHighlightsValue?.Text
+        const content = `Q: ${question}\n A: ${answer}`
         const res = {
-          Content: item.DocumentExcerpt?.Text || "",
+          Content: question&&answer?content:item.DocumentExcerpt?.Text||"",
           Id: item.Id,
           DocumentId: item.DocumentId,
           DocumentTitle: item.DocumentTitle?.Text || "",
@@ -71,7 +78,11 @@ const useRag = (id: string) => {
         return res
       })||[];
 
-      if ((retrieveItems.data.ResultItems ?? []).length === 0) {
+      if(faqs.length>0){
+        retrieveItems.data.ResultItems = []
+      }
+
+      if ((retrieveItems.data.ResultItems ?? []).length === 0 && (faqs?? []).length === 0) {
         popMessage();
         pushMessage(
           'assistant',
