@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Location, useLocation } from 'react-router-dom';
+import { useLocation } from 'react-router-dom';
 import Card from '../components/Card';
 import Button from '../components/Button';
 import RowItem from '../components/RowItem';
@@ -8,18 +8,17 @@ import Textarea from '../components/Textarea';
 import Markdown from '../components/Markdown';
 import ButtonCopy from '../components/ButtonCopy';
 import Alert from '../components/Alert';
+import Select from '../components/Select';
 import useChat from '../hooks/useChat';
 import useChatApi from '../hooks/useChatApi';
 import useTyping from '../hooks/useTyping';
 import { create } from 'zustand';
-import { webContentPrompt } from '../prompts';
-import { WebContentPageLocationState } from '../@types/navigate';
-import { SelectField } from '@aws-amplify/ui-react';
+import { WebContentPageQueryParams } from '../@types/navigate';
 import { MODELS } from '../hooks/useModel';
+import { getPrompter } from '../prompts';
+import queryString from 'query-string';
 
 type StateType = {
-  modelId: string;
-  setModelId: (c: string) => void;
   url: string;
   setUrl: (s: string) => void;
   fetching: boolean;
@@ -35,7 +34,6 @@ type StateType = {
 
 const useWebContentPageState = create<StateType>((set) => {
   const INIT_STATE = {
-    modelId: '',
     url: '',
     fetching: false,
     text: '',
@@ -44,11 +42,6 @@ const useWebContentPageState = create<StateType>((set) => {
   };
   return {
     ...INIT_STATE,
-    setModelId: (s: string) => {
-      set(() => ({
-        modelId: s,
-      }));
-    },
     setUrl: (s: string) => {
       set(() => ({
         url: s,
@@ -82,8 +75,6 @@ const useWebContentPageState = create<StateType>((set) => {
 
 const WebContent: React.FC = () => {
   const {
-    modelId,
-    setModelId,
     url,
     setUrl,
     fetching,
@@ -97,47 +88,60 @@ const WebContent: React.FC = () => {
     clear,
   } = useWebContentPageState();
 
-  const { state, pathname } =
-    useLocation() as Location<WebContentPageLocationState>;
-  const { loading, messages, postChat, clear: clearChat } = useChat(pathname);
+  const { pathname, search } = useLocation();
+  const {
+    getModelId,
+    setModelId,
+    loading,
+    messages,
+    postChat,
+    clear: clearChat,
+  } = useChat(pathname);
   const { setTypingTextInput, typingTextOutput } = useTyping(loading);
   const { getWebText } = useChatApi();
   const [showError, setShowError] = useState(false);
-  const { modelIds: availableModels, textModels } = MODELS;
+  const { modelIds: availableModels } = MODELS;
+  const modelId = getModelId();
+  const prompter = useMemo(() => {
+    return getPrompter(modelId);
+  }, [modelId]);
 
   const disabledExec = useMemo(() => {
     return url === '' || loading || fetching;
   }, [url, loading, fetching]);
 
   useEffect(() => {
-    if (state !== null) {
-      setUrl(state.url);
-      setContext(state.context);
+    const _modelId = !modelId ? availableModels[0] : modelId;
+    if (search !== '') {
+      const params = queryString.parse(search) as WebContentPageQueryParams;
+      setUrl(params.url ?? '');
+      setContext(params.context ?? '');
+      setModelId(
+        availableModels.includes(params.modelId ?? '')
+          ? params.modelId!
+          : _modelId
+      );
+    } else {
+      setModelId(_modelId);
     }
-  }, [state, setUrl, setContext]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [setUrl, setContext, modelId, availableModels, search]);
 
   useEffect(() => {
     setTypingTextInput(content);
   }, [content, setTypingTextInput]);
 
-  useEffect(() => {
-    if (!modelId) {
-      setModelId(availableModels[0]);
-    }
-  }, [modelId, availableModels, setModelId]);
-
   const getContent = useCallback(
-    (modelId: string, text: string, context: string) => {
+    (text: string, context: string) => {
       postChat(
-        webContentPrompt.generatePrompt({
+        prompter.webContentPrompt({
           text,
           context,
         }),
-        true,
-        textModels.find((m) => m.modelId === modelId)
+        true
       );
     },
-    [textModels, postChat]
+    [prompter, postChat]
   );
 
   const onClickExec = useCallback(async () => {
@@ -161,9 +165,8 @@ const WebContent: React.FC = () => {
     const text = res!.data.text;
 
     setText(text);
-    getContent(modelId, text, context);
+    getContent(text, context);
   }, [
-    modelId,
     url,
     context,
     loading,
@@ -180,7 +183,7 @@ const WebContent: React.FC = () => {
     const _lastMessage = messages[messages.length - 1];
     if (_lastMessage.role !== 'assistant') return;
     const _response = messages[messages.length - 1].content;
-    setContent(_response.replace(/(<output>|<\/output>)/g, '').trim());
+    setContent(_response.trim());
   }, [messages, setContent]);
 
   const onClickClear = useCallback(() => {
@@ -212,18 +215,14 @@ const WebContent: React.FC = () => {
         )}
 
         <Card label="コンテンツを抽出したい Web ページ">
-          <div className="mb-4 flex w-full">
-            <SelectField
-              label="モデル"
-              labelHidden
+          <div className="mb-2 flex w-full">
+            <Select
               value={modelId}
-              onChange={(e) => setModelId(e.target.value)}>
-              {availableModels.map((m) => (
-                <option key={m} value={m}>
-                  {m}
-                </option>
-              ))}
-            </SelectField>
+              onChange={setModelId}
+              options={availableModels.map((m) => {
+                return { value: m, label: m };
+              })}
+            />
           </div>
 
           <div className="text-xs text-black/50">

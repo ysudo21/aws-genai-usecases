@@ -1,12 +1,15 @@
 import { RetrieveResultItem } from '@aws-sdk/client-kendra';
-import { Model, ShownMessage } from 'generative-ai-use-cases-jp';
-import { ragPrompt } from '../prompts';
+import { useMemo } from 'react';
 import useChat from './useChat';
 import useChatApi from './useChatApi';
 import useRagApi from './useRagApi';
+import { ShownMessage } from 'generative-ai-use-cases-jp';
+import { findModelByModelId } from './useModel';
+import { getPrompter } from '../prompts';
 
 const useRag = (id: string) => {
   const {
+    getModelId,
     messages,
     postChat,
     clear,
@@ -17,16 +20,27 @@ const useRag = (id: string) => {
     pushMessage,
     isEmpty,
   } = useChat(id);
-
+  
+  const modelId = getModelId();
   const { retrieve, query } = useRagApi();
   const { predict } = useChatApi();
+  const prompter = useMemo(() => {
+    return getPrompter(modelId);
+  }, [modelId]);
 
   return {
     isEmpty,
     clear,
     loading,
     messages,
-    postMessage: async (content: string, model: Model) => {
+    postMessage: async (content: string) => {
+      const model = findModelByModelId(modelId);
+
+      if (!model) {
+        console.error(`model not found for ${modelId}`);
+        return;
+      }
+
       // Kendra から Retrieve する際に、ローディング表示する
       setLoading(true);
       pushMessage('user', content);
@@ -37,7 +51,7 @@ const useRag = (id: string) => {
         messages: [
           {
             role: 'user',
-            content: ragPrompt.generatePrompt({
+            content: prompter.ragPrompt({
               promptType: 'RETRIEVE',
               retrieveQueries: [content],
             }),
@@ -47,7 +61,7 @@ const useRag = (id: string) => {
 
       // Kendra から 参考ドキュメントを Retrieve してシステムコンテキストとして設定する
       const retrieveItemsp = retrieve(queryContent);
-      const queryItemsp = query(queryContent)
+      const queryItemsp = query(queryContent);
       const [retrieveItems, queryItems] = await Promise.all([retrieveItemsp, queryItemsp])
       console.log({
         retrieveResult: retrieveItems
@@ -82,7 +96,7 @@ const useRag = (id: string) => {
         retrieveItems.data.ResultItems = []
       }
 
-      if ((retrieveItems.data.ResultItems ?? []).length === 0 && (faqs?? []).length === 0) {
+      if ((retrieveItems.data.ResultItems ?? []).length === 0 && (faqs?? []).length === 0){
         popMessage();
         pushMessage(
           'assistant',
@@ -96,9 +110,9 @@ const useRag = (id: string) => {
       }
 
       updateSystemContext(
-        ragPrompt.generatePrompt({
+        prompter.ragPrompt({
           promptType: 'SYSTEM_CONTEXT',
-          referenceItems: [...retrieveItems.data.ResultItems!, ...faqs!] ?? [],
+          referenceItems: retrieveItems.data.ResultItems ?? [],
         })
       );
 
@@ -108,7 +122,6 @@ const useRag = (id: string) => {
       postChat(
         content,
         false,
-        model,
         (messages: ShownMessage[]) => {
           // 前処理：Few-shot で参考にされてしまうため、過去ログから footnote を削除
           return messages.map((message) => ({

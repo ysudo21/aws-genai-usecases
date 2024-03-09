@@ -129,6 +129,7 @@ export const batchCreateMessages = async (
         messageId: m.messageId,
         role: m.role,
         content: m.content,
+        extraData: m.extraData,
         userId,
         feedback,
         usecase: m.usecase,
@@ -338,7 +339,9 @@ export const findShareId = async (
 export const deleteShareId = async (_shareId: string): Promise<void> => {
   const userIdAndChatId = await findUserIdAndChatId(_shareId);
   const share = await findShareId(
-    userIdAndChatId!.userId.split('#')[1],
+    // SAML 認証だと userId に # が含まれるため
+    // 例: user#EntraID_hogehoge.com#EXT#@hogehoge.onmicrosoft.com
+    userIdAndChatId!.userId.split('#').slice(1).join('#'),
     userIdAndChatId!.chatId.split('#')[1]
   );
 

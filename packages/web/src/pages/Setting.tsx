@@ -10,6 +10,9 @@ import useGitHub, { PullRequest } from '../hooks/useGitHub';
 import { PiGithubLogoFill, PiArrowSquareOut } from 'react-icons/pi';
 
 const ragEnabled: boolean = import.meta.env.VITE_APP_RAG_ENABLED === 'true';
+const agentEnabled: boolean = import.meta.env.VITE_APP_AGENT_ENABLED === 'true';
+const recognizeFileEnabled: boolean =
+  import.meta.env.VITE_APP_RECOGNIZE_FILE_ENABLED === 'true';
 
 const SettingItem = (props: {
   name: string;
@@ -30,7 +33,7 @@ const SettingItem = (props: {
 };
 
 const Setting = () => {
-  const { modelRegion, modelIds, imageGenModelIds } = MODELS;
+  const { modelRegion, modelIds, imageGenModelIds, agentNames } = MODELS;
   const { getLocalVersion, getHasUpdate } = useVersion();
   const { getClosedPullRequests } = useGitHub();
 
@@ -72,6 +75,11 @@ const Setting = () => {
           helpMessage="generative-ai-use-cases-jp の package.json の version を参照しています"
         />
         <SettingItem name="RAG 有効" value={ragEnabled.toString()} />
+        <SettingItem name="Agent 有効" value={agentEnabled.toString()} />
+        <SettingItem
+          name="ファイルアップロード 有効"
+          value={recognizeFileEnabled.toString()}
+        />
       </div>
 
       <div className="my-3 flex justify-center font-semibold">生成 AI</div>
@@ -82,6 +90,7 @@ const Setting = () => {
           name="画像生成 モデル名"
           value={imageGenModelIds.join(', ')}
         />
+        <SettingItem name="Agent 名" value={agentNames.join(', ')} />
         <SettingItem
           name="LLM & 画像生成 モデルリージョン"
           value={modelRegion}

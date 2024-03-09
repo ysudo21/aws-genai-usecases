@@ -7,6 +7,7 @@ import remarkGfm from 'remark-gfm';
 import remarkBreaks from 'remark-breaks';
 import ButtonCopy from './ButtonCopy';
 import useRagFile from '../hooks/useRagFile';
+import { PiSpinnerGap } from 'react-icons/pi';
 
 type Props = BaseProps & {
   children: string;
@@ -18,7 +19,7 @@ const LinkRenderer: React.FC<
   any
 > = (props) => {
   // 現状、S3 からのファイルダウンロード機能は RAG チャットしか利用しない
-  const { downloadDoc, isS3Url } = useRagFile();
+  const { downloadDoc, isS3Url, downloading } = useRagFile();
   const isS3 = useMemo(() => {
     return isS3Url(props.href);
   }, [isS3Url, props.href]);
@@ -29,10 +30,15 @@ const LinkRenderer: React.FC<
         <a
           id={props.id}
           onClick={() => {
-            downloadDoc(props.href);
+            if (!downloading) {
+              downloadDoc(props.href);
+            }
           }}
-          className="cursor-pointer">
+          className={`cursor-pointer ${downloading ? 'text-gray-400' : ''}`}>
           {props.children}
+          {downloading && (
+            <PiSpinnerGap className="mx-2 inline-block animate-spin" />
+          )}
         </a>
       ) : (
         <a
@@ -66,20 +72,27 @@ const Markdown: React.FC<Props> = ({ className, prefix, children }) => {
 
           return (
             <>
-              <div className="flex">
-                <span className="flex-auto">{isCodeBlock ? language : ''}</span>
-                <ButtonCopy
-                  className="mr-2 justify-end text-gray-400"
-                  text={codeText} // クリップボードにコピーする対象として、SyntaxHighlighter に渡すソースコード部分を指定
-                />
-              </div>
-              <SyntaxHighlighter
-                {...props}
-                children={codeText}
-                style={vscDarkPlus}
-                language={isCodeBlock ? language : 'plaintext'}
-                PreTag="div"
-              />
+              {isCodeBlock ? (
+                <>
+                  <div className="flex">
+                    <span className="flex-auto">{language} </span>
+                    <ButtonCopy
+                      className="mr-2 justify-end text-gray-400"
+                      text={codeText} // クリップボードにコピーする対象として、SyntaxHighlighter に渡すソースコード部分を指定
+                    />
+                  </div>
+                  <SyntaxHighlighter
+                    {...props}
+                    children={codeText}
+                    style={vscDarkPlus}
+                    language={isCodeBlock ? language : 'plaintext'}
+                  />
+                </>
+              ) : (
+                <div className="bg-aws-squid-ink/10 border-aws-squid-ink/30 inline rounded-md border px-1 py-0.5">
+                  {codeText}
+                </div>
+              )}
             </>
           );
         },
