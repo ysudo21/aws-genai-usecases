@@ -3,12 +3,14 @@ import { useLocation } from 'react-router-dom';
 import Markdown from './Markdown';
 import ButtonCopy from './ButtonCopy';
 import ButtonFeedback from './ButtonFeedback';
+import ZoomUpImage from './ZoomUpImage';
 import { PiUserFill, PiChalkboardTeacher } from 'react-icons/pi';
 import { BaseProps } from '../@types/common';
 import { ShownMessage } from 'generative-ai-use-cases-jp';
 import { ReactComponent as BedrockIcon } from '../assets/bedrock.svg';
 import useChat from '../hooks/useChat';
 import useTyping from '../hooks/useTyping';
+import useFileApi from '../hooks/useFileApi';
 
 type Props = BaseProps & {
   idx?: number;
@@ -25,6 +27,7 @@ const ChatMessage: React.FC<Props> = (props) => {
   const { pathname } = useLocation();
   const { sendFeedback } = useChat(pathname);
   const [isSendingFeedback, setIsSendingFeedback] = useState(false);
+  const { getDocDownloadSignedUrl } = useFileApi();
 
   const { setTypingTextInput, typingTextOutput } = useTyping(
     chatContent?.role === 'assistant' && props.loading
@@ -35,6 +38,21 @@ const ChatMessage: React.FC<Props> = (props) => {
       setTypingTextInput(chatContent?.content);
     }
   }, [chatContent, setTypingTextInput]);
+
+  const [signedUrls, setSignedUrls] = useState<string[]>([]);
+
+  useEffect(() => {
+    if (chatContent?.extraData) {
+      Promise.all(
+        chatContent.extraData.map(async (file) => {
+          return await getDocDownloadSignedUrl(file.source.data);
+        })
+      ).then((results) => setSignedUrls(results));
+    } else {
+      setSignedUrls([]);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [chatContent]);
 
   const disabled = useMemo(() => {
     return isSendingFeedback || !props.chatContent?.id;
@@ -83,6 +101,13 @@ const ChatMessage: React.FC<Props> = (props) => {
           <div className="ml-5 grow ">
             {chatContent?.role === 'user' && (
               <div className="break-all">
+                {signedUrls.length > 0 && (
+                  <div className="mb-2 flex flex-wrap gap-2">
+                    {signedUrls.map((url) => (
+                      <ZoomUpImage key={url} src={url} size={32} />
+                    ))}
+                  </div>
+                )}
                 {typingTextOutput.split('\n').map((c, idx) => (
                   <div key={idx}>{c}</div>
                 ))}

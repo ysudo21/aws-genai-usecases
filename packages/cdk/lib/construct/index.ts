@@ -5,3 +5,6 @@ export * from './database';
 export * from './rag';
 export * from './transcribe';
 export * from './common-web-acl';
+export * from './agent';
+export * from './file';
+export * from './recognize-file';
