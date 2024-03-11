@@ -34,6 +34,7 @@ const useRag = (id: string) => {
     loading,
     messages,
     postMessage: async (content: string) => {
+      const DOCUMENTS_COUNT = 3
       const model = findModelByModelId(modelId);
 
       if (!model) {
@@ -92,11 +93,11 @@ const useRag = (id: string) => {
         return res
       })||[];
 
-      if(faqs.length>0){
-        retrieveItems.data.ResultItems = []
-      }
+      const retrieveResultItems = retrieveItems.data.ResultItems??[].slice(0, DOCUMENTS_COUNT)
+      const contextItems = faqs.length?faqs:(retrieveResultItems.length?retrieveResultItems:[])
+      const footnoteItems = faqs.length ? []: retrieveResultItems
 
-      if ((retrieveItems.data.ResultItems ?? []).length === 0 && (faqs?? []).length === 0){
+      if (contextItems.length === 0){
         popMessage();
         pushMessage(
           'assistant',
@@ -112,7 +113,7 @@ const useRag = (id: string) => {
       updateSystemContext(
         prompter.ragPrompt({
           promptType: 'SYSTEM_CONTEXT',
-          referenceItems: faqs ?? retrieveItems.data.ResultItems ?? [],
+          referenceItems: contextItems,
         })
       );
 
@@ -131,7 +132,7 @@ const useRag = (id: string) => {
         },
         (message: string) => {
           // 後処理：Footnote の付与
-          const footnote = retrieveItems.data.ResultItems?.map((item, idx) => {
+          const footnote = footnoteItems?.map((item, idx) => {
             // 参考にしたページ番号がある場合は、アンカーリンクとして設定する
             const _excerpt_page_number = item.DocumentAttributes?.find(
               (attr) => attr.Key === '_excerpt_page_number'
