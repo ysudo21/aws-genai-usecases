@@ -1,11 +1,11 @@
 import { RetrieveResultItem } from '@aws-sdk/client-kendra';
+import { ShownMessage } from 'generative-ai-use-cases-jp';
 import { useMemo } from 'react';
+import { getPrompter } from '../prompts';
 import useChat from './useChat';
 import useChatApi from './useChatApi';
-import useRagApi from './useRagApi';
-import { ShownMessage } from 'generative-ai-use-cases-jp';
 import { findModelByModelId } from './useModel';
-import { getPrompter } from '../prompts';
+import useRagApi from './useRagApi';
 
 const useRag = (id: string) => {
   const {
@@ -112,7 +112,7 @@ const useRag = (id: string) => {
       updateSystemContext(
         prompter.ragPrompt({
           promptType: 'SYSTEM_CONTEXT',
-          referenceItems: retrieveItems.data.ResultItems ?? [],
+          referenceItems: faqs ?? retrieveItems.data.ResultItems ?? [],
         })
       );
 
