@@ -62,8 +62,9 @@ export type PredictRequest = {
 export type PredictResponse = string;
 
 export type PredictTitleRequest = {
+  model: Model;
   chat: Chat;
-  messages: UnrecordedMessage[];
+  prompt: string;
 };
 
 export type PredictTitleResponse = string;
@@ -135,4 +136,22 @@ export type FindShareIdResponse = ShareId;
 export type GetSharedChatResponse = {
   chat: Chat;
   messages: RecordedMessage[];
+};
+
+export type GetFileUploadSignedUrlRequest = {
+  mediaFormat: string;
+};
+
+export type GetFileUploadSignedUrlResponse = string;
+
+export type UploadFileRequest = {
+  file: File;
+};
+
+export type RecognizeFileRequest = {
+  fileUrl: string;
+};
+
+export type RecognizeFileResponse = {
+  text: string;
 };

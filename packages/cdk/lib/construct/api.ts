@@ -14,6 +14,7 @@ import { NodejsFunction } from 'aws-cdk-lib/aws-lambda-nodejs';
 import { Table } from 'aws-cdk-lib/aws-dynamodb';
 import { IdentityPool } from '@aws-cdk/aws-cognito-identitypool-alpha';
 import { Effect, PolicyStatement } from 'aws-cdk-lib/aws-iam';
+import { Agent, AgentMap } from 'generative-ai-use-cases-jp';
 
 export interface BackendApiProps {
   userPool: UserPool;
@@ -26,8 +27,10 @@ export class Api extends Construct {
   readonly predictStreamFunction: NodejsFunction;
   readonly modelRegion: string;
   readonly modelIds: string[];
+  readonly multiModalModelIds: string[];
   readonly imageGenerationModelIds: string[];
   readonly endpointNames: string[];
+  readonly agentNames: string[];
 
   constructor(scope: Construct, id: string, props: BackendApiProps) {
     super(scope, id);
@@ -36,6 +39,8 @@ export class Api extends Construct {
 
     // region for bedrock / sagemaker
     const modelRegion = this.node.tryGetContext('modelRegion') || 'us-east-1';
+    // region for bedrock agent
+    const agentRegion = this.node.tryGetContext('agentRegion') || 'us-east-1';
 
     // Model IDs
     const modelIds: string[] = this.node.tryGetContext('modelIds') || [
@@ -43,19 +48,28 @@ export class Api extends Construct {
     ];
     const imageGenerationModelIds: string[] = this.node.tryGetContext(
       'imageGenerationModelIds'
-    ) || ['stability.stable-diffusion-xl-v0'];
+    ) || ['stability.stable-diffusion-xl-v1'];
     const endpointNames: string[] =
       this.node.tryGetContext('endpointNames') || [];
+    const agents: Agent[] = this.node.tryGetContext('agents') || [];
 
     // Validate Model Names
     const supportedModelIds = [
+      'anthropic.claude-3-sonnet-20240229-v1:0',
       'anthropic.claude-v2:1',
       'anthropic.claude-v2',
       'anthropic.claude-instant-v1',
+      // Titan は日本語文字化けのため未対応
+      // 'amazon.titan-text-express-v1',
       'stability.stable-diffusion-xl-v0',
       'stability.stable-diffusion-xl-v1',
       'amazon.titan-image-generator-v1',
+      'meta.llama2-13b-chat-v1',
+      'meta.llama2-70b-chat-v1',
+      'mistral.mistral-7b-instruct-v0:2',
+      'mistral.mixtral-8x7b-instruct-v0:1',
     ];
+    const multiModalModelIds = ['anthropic.claude-3-sonnet-20240229-v1:0'];
     for (const modelId of modelIds) {
       if (!supportedModelIds.includes(modelId)) {
         throw new Error(`Unsupported Model Name: ${modelId}`);
@@ -65,6 +79,13 @@ export class Api extends Construct {
       if (!supportedModelIds.includes(modelId)) {
         throw new Error(`Unsupported Model Name: ${modelId}`);
       }
+    }
+    const agentMap: AgentMap = {};
+    for (const agent of agents) {
+      agentMap[agent.displayName] = {
+        agentId: agent.agentId,
+        aliasId: agent.aliasId,
+      };
     }
 
     // Lambda
@@ -90,10 +111,13 @@ export class Api extends Construct {
         MODEL_REGION: modelRegion,
         MODEL_IDS: JSON.stringify(modelIds),
         IMAGE_GENERATION_MODEL_IDS: JSON.stringify(imageGenerationModelIds),
+        AGENT_REGION: agentRegion,
+        AGENT_MAP: JSON.stringify(agentMap),
       },
       bundling: {
         nodeModules: [
           '@aws-sdk/client-bedrock-runtime',
+          '@aws-sdk/client-bedrock-agent-runtime',
           // デフォルトの client-sagemaker-runtime のバージョンは StreamingResponse に
           // 対応していないため package.json に記載のバージョンを Bundle する
           '@aws-sdk/client-sagemaker-runtime',
@@ -466,7 +490,9 @@ export class Api extends Construct {
     this.predictStreamFunction = predictStreamFunction;
     this.modelRegion = modelRegion;
     this.modelIds = modelIds;
+    this.multiModalModelIds = multiModalModelIds;
     this.imageGenerationModelIds = imageGenerationModelIds;
     this.endpointNames = endpointNames;
+    this.agentNames = Object.keys(agentMap);
   }
 }
