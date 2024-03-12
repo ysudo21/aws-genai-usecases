@@ -67,9 +67,6 @@ const useRag = (id: string) => {
       console.log({
         retrieveResult: retrieveItems
       })
-      console.log({
-        queryResult: queryItems
-      })
       const faqs: RetrieveResultItem[] = queryItems.data.ResultItems?.filter((item) => item.Type === 'QUESTION_ANSWER').map((item)=>{
         const question = item.AdditionalAttributes?.find(
           (a) => a.Key === 'QuestionText'
@@ -93,9 +90,11 @@ const useRag = (id: string) => {
         return res
       })||[];
 
-      const retrieveResultItems = retrieveItems.data.ResultItems.slice(0, DOCUMENTS_COUNT)??[]
+      const retrieveResultItems = retrieveItems.data.ResultItems?.slice(0, DOCUMENTS_COUNT)??[]
       const contextItems = faqs.length?faqs:(retrieveResultItems.length?retrieveResultItems:[])
       const footnoteItems = faqs.length ? []: retrieveResultItems
+      
+      console.log(retrieveItems)
 
       if (contextItems.length === 0){
         popMessage();
