@@ -96,9 +96,6 @@ const useRag = (id: string) => {
       const retrieveResultItems = retrieveItems.data.ResultItems.slice(0, DOCUMENTS_COUNT)??[]
       const contextItems = faqs.length?faqs:(retrieveResultItems.length?retrieveResultItems:[])
       const footnoteItems = faqs.length ? []: retrieveResultItems
-      
-      console.log(retrieveResultItems)
-      console.log(contextItems)
 
       if (contextItems.length === 0){
         popMessage();
