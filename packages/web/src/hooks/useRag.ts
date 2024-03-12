@@ -90,7 +90,7 @@ const useRag = (id: string) => {
         return res
       })||[];
 
-      const retrieveResultItems = retrieveItems.data.ResultItems.slice(0, DOCUMENTS_COUNT)??[]
+      const retrieveResultItems = retrieveItems.data.ResultItems?.slice(0, DOCUMENTS_COUNT)??[]
       const contextItems = faqs.length?faqs:(retrieveResultItems.length?retrieveResultItems:[])
       const footnoteItems = faqs.length ? []: retrieveResultItems
       
