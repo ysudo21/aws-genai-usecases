@@ -1,19 +1,11 @@
-<<<<<<< HEAD
 import { RetrieveResultItem } from '@aws-sdk/client-kendra';
-import { Model, ShownMessage } from 'generative-ai-use-cases-jp';
-import { ragPrompt } from '../prompts';
-import useChat from './useChat';
-import useChatApi from './useChatApi';
-import useRagApi from './useRagApi';
-=======
-import { useMemo } from 'react';
-import useChat from './useChat';
-import useChatApi from './useChatApi';
-import useRagApi from './useRagApi';
 import { ShownMessage } from 'generative-ai-use-cases-jp';
-import { findModelByModelId } from './useModel';
+import { useMemo } from 'react';
 import { getPrompter } from '../prompts';
->>>>>>> 6718879cd3b58ab139987d360671c9dbd6c87009
+import useChat from './useChat';
+import useChatApi from './useChatApi';
+import { findModelByModelId } from './useModel';
+import useRagApi from './useRagApi';
 
 const useRag = (id: string) => {
   const {
@@ -28,13 +20,9 @@ const useRag = (id: string) => {
     pushMessage,
     isEmpty,
   } = useChat(id);
-
-<<<<<<< HEAD
-  const { retrieve, query } = useRagApi();
-=======
+  
   const modelId = getModelId();
-  const { retrieve } = useRagApi();
->>>>>>> 6718879cd3b58ab139987d360671c9dbd6c87009
+  const { retrieve, query } = useRagApi();
   const { predict } = useChatApi();
   const prompter = useMemo(() => {
     return getPrompter(modelId);
@@ -46,6 +34,7 @@ const useRag = (id: string) => {
     loading,
     messages,
     postMessage: async (content: string) => {
+      const DOCUMENTS_COUNT = 3
       const model = findModelByModelId(modelId);
 
       if (!model) {
@@ -72,9 +61,8 @@ const useRag = (id: string) => {
       });
 
       // Kendra から 参考ドキュメントを Retrieve してシステムコンテキストとして設定する
-<<<<<<< HEAD
       const retrieveItemsp = retrieve(queryContent);
-      const queryItemsp = query(queryContent)
+      const queryItemsp = query(queryContent);
       const [retrieveItems, queryItems] = await Promise.all([retrieveItemsp, queryItemsp])
       console.log({
         retrieveResult: retrieveItems
@@ -105,16 +93,14 @@ const useRag = (id: string) => {
         return res
       })||[];
 
-      if(faqs.length>0){
-        retrieveItems.data.ResultItems = []
-      }
+      const retrieveResultItems = retrieveItems.data.ResultItems.slice(0, DOCUMENTS_COUNT)??[]
+      const contextItems = faqs.length?faqs:(retrieveResultItems.length?retrieveResultItems:[])
+      const footnoteItems = faqs.length ? []: retrieveResultItems
+      
+      console.log(retrieveResultItems)
+      console.log(contextItems)
 
-      if ((retrieveItems.data.ResultItems ?? []).length === 0 && (faqs?? []).length === 0) {
-=======
-      const items = await retrieve(query);
-
-      if ((items.data.ResultItems ?? []).length === 0) {
->>>>>>> 6718879cd3b58ab139987d360671c9dbd6c87009
+      if (contextItems.length === 0){
         popMessage();
         pushMessage(
           'assistant',
@@ -130,7 +116,7 @@ const useRag = (id: string) => {
       updateSystemContext(
         prompter.ragPrompt({
           promptType: 'SYSTEM_CONTEXT',
-          referenceItems: [...retrieveItems.data.ResultItems!, ...faqs!] ?? [],
+          referenceItems: contextItems,
         })
       );
 
@@ -149,7 +135,7 @@ const useRag = (id: string) => {
         },
         (message: string) => {
           // 後処理：Footnote の付与
-          const footnote = retrieveItems.data.ResultItems?.map((item, idx) => {
+          const footnote = footnoteItems?.map((item, idx) => {
             // 参考にしたページ番号がある場合は、アンカーリンクとして設定する
             const _excerpt_page_number = item.DocumentAttributes?.find(
               (attr) => attr.Key === '_excerpt_page_number'
