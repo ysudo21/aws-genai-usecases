@@ -67,6 +67,10 @@ const useRag = (id: string) => {
       console.log({
         retrieveResult: retrieveItems
       })
+      console.log({
+        queryResult: queryItems
+      })
+      const knowledgeIds:string[] = []
       const faqs: RetrieveResultItem[] = queryItems.data.ResultItems?.filter((item) => item.Type === 'QUESTION_ANSWER').map((item)=>{
         const question = item.AdditionalAttributes?.find(
           (a) => a.Key === 'QuestionText'
@@ -74,6 +78,10 @@ const useRag = (id: string) => {
         const answer = item.AdditionalAttributes?.find(
           (a) => a.Key === 'AnswerText'
         )?.Value?.TextWithHighlightsValue?.Text
+        const knowledge = item.DocumentAttributes?.find(
+          (a) => a.Key === 'kb_number'
+        )?.Value?.StringValue
+        knowledge&&knowledgeIds.push(knowledge)
         const content = `Q: ${question}\n A: ${answer}`
         const res = {
           Content: question&&answer?content:item.DocumentExcerpt?.Text||"",
@@ -90,11 +98,13 @@ const useRag = (id: string) => {
         return res
       })||[];
 
+      const knowledge_message = knowledgeIds.length>0?`参考として、IT Service Portalのナレッジから ${Array.from(new Set(knowledgeIds)).join(", ")} と検索して内容を確認してみてください。`:""
+
       const retrieveResultItems = retrieveItems.data.ResultItems?.slice(0, DOCUMENTS_COUNT)??[]
       const contextItems = faqs.length?faqs:(retrieveResultItems.length?retrieveResultItems:[])
       const footnoteItems = faqs.length ? []: retrieveResultItems
       
-      console.log(retrieveItems)
+      console.log(retrieveResultItems)
 
       if (contextItems.length === 0){
         popMessage();
@@ -146,7 +156,7 @@ const useRag = (id: string) => {
           })
             .filter((x) => x)
             .join('\n');
-          return message + '\n' + footnote;
+          return message + '\n' + knowledge_message + '\n' +footnote;
         }
       );
     },
